@@ -1,5 +1,16 @@
 import requests
 import sys
+import reverse_geocoder as rg
+
+# Define the function to change coordinates to the country the ISS is over or closest to (if it is over the ocean, which most of the time it is)
+def latlon_to_country(lat, lon):
+    # Defines the latitude and longitute
+    coordinates = (lat, lon)
+    # Returns a list of countries
+    results = rg.search(coordinates, verbose=False)
+    # Gets the country
+    country = results[0]['cc']
+    return country
 
 def print_astronauts():
     # Get the astronauts' names from Open Notify
@@ -50,6 +61,10 @@ while outer_loop:
             # Convert the latitude and longitude to floats, as they are returned as strings.
             lat = float(data['iss_position']['latitude'])
             lon = float(data['iss_position']['longitude'])
+
+            # Print the country that the ISS is over
+            country = latlon_to_country(lat, lon)
+            print(f"The ISS is currently near/over {country}.")
 
             # Print the astronauts currently on the ISS
             print_astronauts()
