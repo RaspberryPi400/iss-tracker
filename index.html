@@ -1,13 +1,20 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live ISS Tracker</title>
-    <link rel="stylesheet" href="https://unpkg.com" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { font-family: sans-serif; text-align: center; background: #1a1a2e; color: white; }
-        #issMap { height: 400px; width: 80%; margin: 20px auto; border-radius: 10px; }
-        .stats { margin: 20px; font-size: 1.2em; }
-        #astronauts { list-style: none; padding: 0; color: #00d2ff; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #1a1a2e; color: white; margin: 0; padding: 20px; }
+        h1 { color: #00d2ff; text-shadow: 2px 2px #000; }
+        #issMap { height: 450px; width: 90%; max-width: 1000px; margin: 20px auto; border: 2px solid #00d2ff; border-radius: 15px; box-shadow: 0 0 20px rgba(0, 210, 255, 0.3); }
+        .stats { background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 10px; display: inline-block; min-width: 300px; }
+        .stats span { font-weight: bold; color: #00d2ff; }
+        #astronauts { list-style: none; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+        #astronauts li { background: #16213e; padding: 8px 15px; border-radius: 20px; border: 1px solid #00d2ff; }
+        footer { margin-top: 30px; font-size: 0.9em; opacity: 0.7; }
+        a { color: #00d2ff; text-decoration: none; }
     </style>
 </head>
 <body>
@@ -15,68 +22,81 @@
     <h1>ISS Live Tracking Station</h1>
     
     <div class="stats">
-        <p>Status: <span id="status">Loading...</span></p>
+        <p>Status: <span id="status">Scanning Skies...</span></p>
         <p>Latitude: <span id="lat">0</span>° | Longitude: <span id="lon">0</span>°</p>
     </div>
 
     <div id="issMap"></div>
 
-    <h3>Astronauts in Space</h3>
+    <h3>Astronauts Currently on the ISS</h3>
     <ul id="astronauts"></ul>
 
-    <script src="https://unpkg.com"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         // 1. Initialize the Map
         const map = L.map('issMap').setView([0, 0], 2);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        
+        // Using a darker "Night" style map to match your theme
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+        }).addTo(map);
+
         const issIcon = L.icon({
-            iconUrl: 'https://upload.wikimedia.org',
+            iconUrl: 'https://upload.wikimedia.org/wikipedia/commons/d/d0/International_Space_Station.svg',
             iconSize: [50, 32],
             iconAnchor: [25, 16]
         });
         const marker = L.marker([0, 0], {icon: issIcon}).addTo(map);
 
-        // 2. Fetch ISS Location (The Python "requests" equivalent)
+        // 2. Fetch ISS Location
         async function getISS() {
             try {
-                const response = await fetch('https://api.wheretheiss.at');
+                // Fixed the URL to the specific endpoint
+                const response = await fetch('https://api.wheretheiss.at/v1/satellites/25544');
                 const data = await response.json();
                 const { latitude, longitude, visibility } = data;
 
-                // Update Map & Text
                 marker.setLatLng([latitude, longitude]);
-                map.panTo([latitude, longitude]);
-                document.getElementById('lat').textContent = latitude.toFixed(2);
-                document.getElementById('lon').textContent = longitude.toFixed(2);
-                document.getElementById('status').textContent = `Flying through ${visibility}`;
+                // optional: map.panTo([latitude, longitude]); // Uncomment to follow the ISS
+                
+                document.getElementById('lat').textContent = latitude.toFixed(4);
+                document.getElementById('lon').textContent = longitude.toFixed(4);
+                document.getElementById('status').textContent = visibility.toUpperCase();
             } catch (err) {
                 console.error("Error fetching ISS:", err);
+                document.getElementById('status').textContent = "Offline";
             }
         }
 
         // 3. Fetch Astronauts
         async function getAstros() {
-            const response = await fetch('http://api.open-notify.org/astros.json');
-            const data = await response.json();
-            const list = document.getElementById('astronauts');
-            list.innerHTML = ''; // Clear old list
-            data.people.forEach(p => {
-                if(p.craft === "ISS") {
-                    const li = document.createElement('li');
-                    li.textContent = p.name;
-                    list.appendChild(li);
-                }
-            });
+            try {
+                // Use a proxy or a reliable HTTPS source for astro data
+                const response = await fetch('https://corquaid.github.io/international-space-station-api/api/v1/astros.json');
+                const data = await response.json();
+                const list = document.getElementById('astronauts');
+                list.innerHTML = ''; 
+                
+                data.people.forEach(p => {
+                    if(p.craft === "ISS") {
+                        const li = document.createElement('li');
+                        li.textContent = `👨‍🚀 ${p.name}`;
+                        list.appendChild(li);
+                    }
+                });
+            } catch (err) {
+                console.log("Astro API error:", err);
+            }
         }
 
-        // Run functions and set intervals
         getISS();
         getAstros();
-        setInterval(getISS, 3000); // Update location every 3 seconds
+        setInterval(getISS, 3000); 
     </script>
+
     <footer>
-        <p>Copyright (c) 2026 Elijah Corwin</p>
-        <p><a href="https://raspberrypi400.github.io/my-projects/" target="_blank" rel="noopener noreferrer">See my other projects here</a></p>
+        <p>Copyright © 2026 Elijah Corwin</p>
+        <p><a href="https://raspberrypi400.github.io/my-projects/" target="_blank">See my other projects here</a></p>
     </footer>
 </body>
 </html>
