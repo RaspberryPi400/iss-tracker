@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Live ISS Tracker</title>
+    <link rel="stylesheet" href="https://unpkg.com" />
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #1a1a2e; color: white; }
+        #issMap { height: 400px; width: 80%; margin: 20px auto; border-radius: 10px; }
+        .stats { margin: 20px; font-size: 1.2em; }
+        #astronauts { list-style: none; padding: 0; color: #00d2ff; }
+    </style>
+</head>
+<body>
+
+    <h1>ISS Live Tracking Station</h1>
+    
+    <div class="stats">
+        <p>Status: <span id="status">Loading...</span></p>
+        <p>Latitude: <span id="lat">0</span>° | Longitude: <span id="lon">0</span>°</p>
+    </div>
+
+    <div id="issMap"></div>
+
+    <h3>Astronauts in Space</h3>
+    <ul id="astronauts"></ul>
+
+    <script src="https://unpkg.com"></script>
+    <script>
+        // 1. Initialize the Map
+        const map = L.map('issMap').setView([0, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        const issIcon = L.icon({
+            iconUrl: 'https://upload.wikimedia.org',
+            iconSize: [50, 32],
+            iconAnchor: [25, 16]
+        });
+        const marker = L.marker([0, 0], {icon: issIcon}).addTo(map);
+
+        // 2. Fetch ISS Location (The Python "requests" equivalent)
+        async function getISS() {
+            try {
+                const response = await fetch('https://api.wheretheiss.at');
+                const data = await response.json();
+                const { latitude, longitude, visibility } = data;
+
+                // Update Map & Text
+                marker.setLatLng([latitude, longitude]);
+                map.panTo([latitude, longitude]);
+                document.getElementById('lat').textContent = latitude.toFixed(2);
+                document.getElementById('lon').textContent = longitude.toFixed(2);
+                document.getElementById('status').textContent = `Flying through ${visibility}`;
+            } catch (err) {
+                console.error("Error fetching ISS:", err);
+            }
+        }
+
+        // 3. Fetch Astronauts
+        async function getAstros() {
+            const response = await fetch('http://api.open-notify.org/astros.json');
+            const data = await response.json();
+            const list = document.getElementById('astronauts');
+            list.innerHTML = ''; // Clear old list
+            data.people.forEach(p => {
+                if(p.craft === "ISS") {
+                    const li = document.createElement('li');
+                    li.textContent = p.name;
+                    list.appendChild(li);
+                }
+            });
+        }
+
+        // Run functions and set intervals
+        getISS();
+        getAstros();
+        setInterval(getISS, 3000); // Update location every 3 seconds
+    </script>
+    <footer>
+        <p>Copyright (c) 2026 Elijah Corwin</p>
+        <p><a href="https://raspberrypi400.github.io/my-projects/" target="_blank" rel="noopener noreferrer">See my other projects here</a></p>
+    </footer>
+</body>
+</html>
