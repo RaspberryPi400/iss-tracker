@@ -5,8 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta name="description" content="Track the International Space Station (ISS), live, 24-7! Created by Elijah Corwin.">
-    <meta name="title" content="Live ISS Tracker">
-    <meta name="google-site-verification" content="aFn5C7ybPkOOcT1ymxpRGZ-J0aHOqjdFNcACj5poJb0" />
     <title>Live ISS Tracker</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
@@ -15,16 +13,12 @@
         #issMap { height: 450px; width: 95%; max-width: 1100px; margin: 20px auto; border: 2px solid #00d2ff; border-radius: 15px; box-shadow: 0 0 20px rgba(0, 210, 255, 0.3); }
         .stats { background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 10px; display: inline-block; min-width: 320px; margin-bottom: 10px; }
         .stats span { font-weight: bold; color: #00d2ff; }
-        
-        /* New Button Styles */
-        button { background: #16213e; color: #00d2ff; border: 1px solid #00d2ff; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; transition: all 0.3s ease; font-size: 1em; }
+        button { background: #16213e; color: #00d2ff; border: 1px solid #00d2ff; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; transition: all 0.3s ease; }
         button:hover { background: #00d2ff; color: #1a1a2e; box-shadow: 0 0 10px #00d2ff; }
-        
         #astronauts { list-style: none; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 10px; }
         #astronauts li { background: #16213e; padding: 8px 15px; border-radius: 20px; border: 1px solid #00d2ff; font-size: 0.9em; }
         footer { margin-top: 40px; font-size: 0.85em; opacity: 0.7; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; }
-        a { color: #00d2ff; text-decoration: none; font-weight: bold; }
-        a:hover { text-decoration: underline; }
+        a { color: #00d2ff; text-decoration: none; }
     </style>
 </head>
 <body>
@@ -40,15 +34,14 @@
     <div id="issMap"></div>
 
     <h3>Astronauts Currently on the ISS</h3>
-    <ul id="astronauts"></ul>
+    <ul id="astronauts"><li>Loading crew...</li></ul>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 1. Initialize the Map
+        // 1. Map Setup
         const map = L.map('issMap').setView([20, 0], 2);
-        
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+            attribution: '&copy; CARTO'
         }).addTo(map);
 
         const issIcon = L.icon({
@@ -56,92 +49,93 @@
             iconSize: [50, 32],
             iconAnchor: [25, 16]
         });
-
         const marker = L.marker([0, 0], {icon: issIcon}).addTo(map);
-
-        // 2. Path Tracer Logic
+        const polyline = L.polyline([], {color: '#00d2ff', weight: 2}).addTo(map);
         let pathCoords = [];
-        const polyline = L.polyline([], {color: '#00d2ff', weight: 2, opacity: 0.6}).addTo(map);
 
-        // 3. Follow Toggle Logic
+        // 2. Logic Controls
         let isFollowing = true;
-        const toggleBtn = document.getElementById('toggleFollow');
-        toggleBtn.addEventListener('click', () => {
+        document.getElementById('toggleFollow').onclick = function() {
             isFollowing = !isFollowing;
-            toggleBtn.textContent = isFollowing ? "Unfollow ISS" : "Follow ISS";
-        });
+            this.textContent = isFollowing ? "Unfollow ISS" : "Follow ISS";
+        };
 
-        // 4. Fetch ISS Location
+        // 3. Get ISS Location (This usually works fine)
         async function getISS() {
             try {
-                const response = await fetch('https://api.wheretheiss.at/v1/satellites/25544');
-                const data = await response.json();
+                const res = await fetch('https://api.wheretheiss.at/v1/satellites/25544');
+                const data = await res.json();
                 const { latitude, longitude, visibility } = data;
-
                 const pos = [latitude, longitude];
+
                 marker.setLatLng(pos);
-                
-                // Auto-Panning (only if isFollowing is true)
-                if (isFollowing) {
-                    map.panTo(pos);
+                if (isFollowing) map.panTo(pos);
+
+                if (pathCoords.length > 0 && Math.abs(longitude - pathCoords[pathCoords.length-1][1]) > 180) {
+                    pathCoords = [];
                 }
 
-                // Antimeridian Fix
-                if (pathCoords.length > 0) {
-                    const lastPos = pathCoords[pathCoords.length - 1];
-                    const lngDiff = Math.abs(longitude - lastPos[1]);
-                    
-                    if (lngDiff > 180) {
-                        pathCoords = []; 
-                        polyline.setLatLngs([]);
-                    }
-                }
-                
                 pathCoords.push(pos);
                 polyline.setLatLngs(pathCoords);
 
                 document.getElementById('lat').textContent = latitude.toFixed(4);
                 document.getElementById('lon').textContent = longitude.toFixed(4);
                 document.getElementById('status').textContent = visibility.toUpperCase();
-
-            } catch (err) {
-                console.error("Error fetching ISS:", err);
-                document.getElementById('status').textContent = "OFFLINE";
-            }
+            } catch (e) { console.error("ISS Position Fetch Error:", e); }
         }
 
-        // 5. Fetch Astronauts
+        // 4. Get Astronauts (The "Troublemaker" function)
         async function getAstros() {
-            try {
-                const response = await fetch('https://raw.githubusercontent.com/the-mue/opennotify-api/master/data/astros.json');
-                const data = await response.json();
-                const list = document.getElementById('astronauts');
-                list.innerHTML = ''; 
-                
-                data.people.forEach(p => {
-                    if(p.craft === "ISS") {
+            const list = document.getElementById('astronauts');
+            
+            // Try Source A: A high-availability mirror
+            // Try Source B: Direct raw GitHub data (often bypasses CORS if formatted correctly)
+            const sources = [
+                'https://raw.githubusercontent.com/the-mue/opennotify-api/master/data/astros.json',
+                'https://api.allorigins.win/get?url=' + encodeURIComponent('http://api.open-notify.org/astros.json')
+            ];
+
+            for (let url of sources) {
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) continue;
+
+                    let data = await response.json();
+                    
+                    // If using allorigins proxy, the actual data is in data.contents
+                    if (data.contents) {
+                        data = JSON.parse(data.contents);
+                    }
+
+                    list.innerHTML = '';
+                    const crew = data.people.filter(p => 
+                        p.craft.toUpperCase().includes("ISS") || 
+                        p.craft.toLowerCase().includes("space station")
+                    );
+
+                    crew.forEach(p => {
                         const li = document.createElement('li');
                         li.textContent = `👨‍🚀 ${p.name}`;
                         list.appendChild(li);
-                    }
-                });
-            } catch (err) {
-                console.error("Astro API error:", err);
-                document.getElementById('astronauts').innerHTML = "<li>Crew data currently unavailable</li>";
+                    });
+                    
+                    return; // Exit if successful
+                } catch (err) {
+                    console.warn(`Source ${url} failed, trying next...`);
+                }
             }
+            
+            list.innerHTML = "<li>Crew data currently unavailable</li>";
         }
 
-        // Initial calls
         getISS();
         getAstros();
-
-        // Refresh ISS location every 5 seconds
-        setInterval(getISS, 5000); 
+        setInterval(getISS, 5000);
     </script>
 
     <footer>
         <p>Copyright © 2026 Elijah Corwin</p>
-        <p><a href="https://raspberrypi400.github.io/my-projects/" target="_blank">See my other projects here</a></p>
+        <p><a href="raspberrypi400.github.io/my-projects/" target="_blank" rel="noopener noreferrer">See my other projects here</a></p>
     </footer>
 </body>
 </html>
